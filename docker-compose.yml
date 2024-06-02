@@ -1,0 +1,187 @@
+version: "3.8"
+
+services:
+  nginx:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-nginx:latest
+    ports:
+      - "80:80" # Expose Nginx on port 80
+    #  - "443:443"
+    #volumes:
+    #  - /mnt/shared_storage/letsencrypt:/etc/letsencrypt
+    #  - /mnt/shared_storage/certbot:/var/www/certbot
+    #  # - letsencrypt:/etc/letsencrypt
+    #  # - certbot:/var/www/certbot
+    #depends_on:
+    #  - frontend
+    restart: always
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints: [node.role == worker]
+      update_config:
+        order: start-first
+    networks:
+      - shared_swarm_network
+
+  #backend:
+  #  image: "${DOCKER_HUB_USERNAME}/sourcingapp-backend:latest"
+  #  environment:
+  #    - NODE_ENV=production
+  #    - PORT=${STRAPI_PORT}
+  #    - HOST=${STRAPI_HOST}
+  #    - APP_KEYS=${APP_KEYS}
+  #    - API_TOKEN_SALT=${API_TOKEN_SALT}
+  #    - ADMIN_JWT_SECRET=${ADMIN_JWT_SECRET}
+  #    - TRANSFER_TOKEN_SALT=${TRANSFER_TOKEN_SALT}
+  #    - JWT_SECRET=${JWT_SECRET}
+  #
+  #    - DATABASE_CLIENT=${DATABASE_CLIENT}
+  #    - DATABASE_HOST=${DATABASE_HOST}
+  #    - DATABASE_PORT=${DATABASE_PORT}
+  #    - DATABASE_NAME=${DATABASE_NAME}
+  #    - DATABASE_USERNAME=${DATABASE_USERNAME}
+  #    - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+  #  ports:
+  #    - "1337:1337"
+  #  deploy:
+  #    replicas: 2
+  #  networks:
+  #    - shared_swarm_network
+  #
+  ##  image: postgres
+  #affiliate-db:
+  #  volumes:
+  #    - affiliate_db:/var/lib/postgresql/data
+  #  environment:
+  #    POSTGRES_USER: ${DATABASE_USERNAME}
+  #    POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+  #    POSTGRES_DB: ${DATABASE_NAME}
+  #  ports:
+  #    - "5432:5432"
+  #  deploy:
+  #    replicas: 1
+  #  networks:
+  #    - shared_swarm_network
+  #jobplus-postgres:
+  #  image: ${DOCKER_HUB_USERNAME}/jobplus-postgres:latest
+  #
+  #  volumes:
+  #    - /mnt/shared_storage/postgres-data:/var/lib/postgresql/data
+  #  environment:
+  #    POSTGRES_USER: ${DATABASE_USERNAME}
+  #    POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+  #    POSTGRES_DB: ${DATABASE_NAME}
+  #  ports:
+  #    - "5432:5432"
+  #  networks:
+  #    - shared_swarm_network
+  #  deploy:
+  #    replicas: 1
+  #    placement:
+  #      constraints: [node.role == worker]
+  visualizer:
+    image: dockersamples/visualizer
+    #ports:
+    # - "8500:8080" # Expose the visualizer on port 8500
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      - shared_swarm_network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  etcd:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-etcd:latest
+    ports:
+      - "2379:2379" # For client communication
+      - "2380:2380" # For other etcd nodes communication
+    volumes:
+      # - '/mnt/shared_storage/etcd-data:/etcd-data'
+      - etcd_data:/etcd-data
+    networks:
+      - shared_swarm_network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  ctl:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-stolon:latest
+    environment:
+      - ROLE=ctl
+    networks:
+      - shared_swarm_network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  keeper1:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-stolon:latest
+    environment:
+      - ROLE=keeper
+      - STKEEPER_UID=keeper1
+      - PG_REPL_USERNAME=repluser
+      - PG_REPL_PASSWORD=repl_password
+      - PG_SU_USERNAME=postgres
+      - PG_SU_PASSWORD=su_password
+    volumes:
+      - stolon_keeper1_data:/stolon/data
+      - stolon_keeper1_pg_data:/var/lib/postgresql/data
+    networks:
+      - shared_swarm_network
+    deploy:
+      placement:
+        constraints: [node.labels.role == worker1] # Assigns the service to a specific node.
+
+  keeper2:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-stolon:latest
+    environment:
+      - ROLE=keeper
+      - STKEEPER_UID=keeper2
+      - PG_REPL_USERNAME=repluser
+      - PG_REPL_PASSWORD=repl_password
+      - PG_SU_USERNAME=postgres
+      - PG_SU_PASSWORD=su_password
+    volumes:
+      - stolon_keeper2_data:/stolon/data
+      - stolon_keeper2_pg_data:/var/lib/postgresql/data
+    networks:
+      - shared_swarm_network
+    deploy:
+      placement:
+        constraints: [node.labels.role == worker2] # Assigns the service to a specific node.
+
+  sentinel:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-stolon:latest
+    environment:
+      - ROLE=sentinel
+    networks:
+      - shared_swarm_network
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+
+  # Deploys Stolon Proxy for routing client connections to the right PostgreSQL instance.
+  proxy:
+    image: ${DOCKER_HUB_USERNAME}/sourcingapp-stolon:latest
+    environment:
+      - ROLE=proxy
+    networks:
+      - shared_swarm_network
+    ports:
+      - "5432:5432"
+    deploy:
+      placement:
+        constraints: [node.role == manager]
+volumes:
+  etcd_data:
+  stolon_keeper1_data:
+  stolon_keeper1_pg_data:
+  stolon_keeper2_data:
+  stolon_keeper2_pg_data:
+
+networks:
+  shared_swarm_network:
+    external: true
