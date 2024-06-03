@@ -1,6 +1,6 @@
 
 
-do_token = ENV[DIGITALOCEAN_TOKEN] 
+do_token = "dop_v1_eaa8a935bb632047299a312c1417e3dba155226b28fbbcce555500566398c10c" 
 do_image = "ubuntu-23-10-x64"
 do_size = "s-2vcpu-4gb-120gb-intel"
 do_region = "lon1"
