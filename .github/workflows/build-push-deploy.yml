@@ -81,7 +81,7 @@ jobs:
     needs: build-and-push
     runs-on: ubuntu-latest
     env:
-      APP_DIR_PATH: /mnt/shared_storage/sourcingapp-app
+      APP_DIR_PATH: /mnt/shared_storage/sourcingapp
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
